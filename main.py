@@ -8,7 +8,6 @@ import json
 import os
 from datetime import datetime
 
-
 app = FastAPI(
     title="웹툰 분석 API",
     description="웹툰 데이터 분석 및 추천 시스템 API",
@@ -286,15 +285,4 @@ if __name__ == "__main__":
         port=8000, 
         reload=True,  # 코드 변경시 자동 재시작
         log_level="info"
-    )
-
-
-# main.py 맨 아래 수정
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "main:app", 
-        host="0.0.0.0", 
-        port=PORT,
-        reload=ENVIRONMENT == "development"
     )
