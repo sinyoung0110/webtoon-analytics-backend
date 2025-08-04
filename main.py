@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 import uvicorn
 from dotenv import load_dotenv
+from pathlib import Path
 load_dotenv()
 
 app = FastAPI(
@@ -69,10 +70,126 @@ SAMPLE_WEBTOONS = [
     {"rank": 14, "title": "대학원 탈출일지", "tags": ["일상", "개그", "현실", "공감"], "interest_count": 543210, "rating": 9.23, "gender": "남성", "ages": "20대"},
     {"rank": 15, "title": "기기괴괴", "tags": ["호러", "스릴러", "단편", "미스터리"], "interest_count": 432109, "rating": 9.34, "gender": "남성", "ages": "20대"},
 ]
+# CSV 파일 로드 함수 (기존 SAMPLE_WEBTOONS 대체)
+def load_webtoon_data_from_csv():
+    """CSV 파일에서 웹툰 데이터 로드"""
+    try:
+        # CSV 파일 경로
+        csv_path = Path(__file__).parent / "final_webtoon_clean.csv" 
+        
+        if not csv_path.exists():
+            print(f"CSV 파일을 찾을 수 없습니다: {csv_path}")
+            return load_sample_data()  # fallback to sample data
+        
+        # CSV 읽기
+        df = pd.read_csv(csv_path)
+        
+        # 데이터 전처리
+        webtoons_data = []
+        for _, row in df.iterrows():
+            # tags 컬럼 처리 (문자열을 리스트로 변환)
+            tags_str = str(row['tags'])
+            if tags_str.startswith('[') and tags_str.endswith(']'):
+                # ['tag1', 'tag2'] 형태 처리
+                tags = eval(tags_str)  # 안전하지 않지만 임시로 사용
+            else:
+                # 'tag1, tag2' 형태 처리
+                tags = [tag.strip().strip("'\"") for tag in tags_str.split(',')]
+            
+            webtoon = {
+                "rank": int(row['rank']),
+                "title": str(row['title']),
+                "summary": str(row.get('summary', '')),  # summary 추가
+                "tags": tags,
+                "interest_count": int(row['interest_count']),
+                "rating": float(row['rating']),
+                "gender": str(row['gender']),
+                "ages": str(row['ages'])
+            }
+            webtoons_data.append(webtoon)
+        
+        print(f"CSV에서 {len(webtoons_data)}개의 웹툰 데이터를 로드했습니다.")
+        return webtoons_data
+        
+    except Exception as e:
+        print(f"CSV 로딩 중 오류 발생: {e}")
+        return load_sample_data()  # fallback to sample data
 
-def load_webtoon_data():
-    """웹툰 데이터 로드 (나중에 DB 연결로 교체)"""
+def load_sample_data():
+    """샘플 데이터 (fallback용)"""
     return SAMPLE_WEBTOONS
+
+# main.py의 load_webtoon_data 함수를 다음으로 교체
+def load_webtoon_data():
+    """웹툰 데이터 로드"""
+    return load_webtoon_data_from_csv_safe()
+
+
+# 더 안전한 태그 파싱 함수
+def parse_tags(tags_str):
+    """태그 문자열을 리스트로 안전하게 파싱"""
+    if pd.isna(tags_str):
+        return []
+    
+    tags_str = str(tags_str).strip()
+    
+    if tags_str.startswith('[') and tags_str.endswith(']'):
+        try:
+            # ['tag1', 'tag2'] 형태
+            import ast
+            return ast.literal_eval(tags_str)
+        except:
+            # 파싱 실패시 문자열로 처리
+            tags_str = tags_str[1:-1]  # 대괄호 제거
+    
+    # 쉼표로 구분된 태그들 처리
+    tags = []
+    for tag in tags_str.split(','):
+        tag = tag.strip().strip("'\"")
+        if tag:
+            tags.append(tag)
+    
+    return tags
+
+# 개선된 CSV 로드 함수
+def load_webtoon_data_from_csv_safe():
+    """안전한 CSV 데이터 로드"""
+    try:
+        csv_path = Path(__file__).parent / "final_webtoon_clean.csv"
+        
+        if not csv_path.exists():
+            print(f"CSV 파일을 찾을 수 없습니다: {csv_path}")
+            return load_sample_data()
+        
+        # CSV 읽기
+        df = pd.read_csv(csv_path)
+        print(f"CSV 파일에서 {len(df)}개 행을 읽었습니다.")
+        
+        webtoons_data = []
+        for idx, row in df.iterrows():
+            try:
+                webtoon = {
+                    "rank": int(row['rank']),
+                    "title": str(row['title']),
+                    "summary": str(row.get('summary', '')),
+                    "tags": parse_tags(row['tags']),
+                    "interest_count": int(row['interest_count']),
+                    "rating": float(row['rating']),
+                    "gender": str(row['gender']),
+                    "ages": str(row['ages'])
+                }
+                webtoons_data.append(webtoon)
+            except Exception as e:
+                print(f"행 {idx} 처리 중 오류: {e}")
+                continue
+        
+        print(f"성공적으로 {len(webtoons_data)}개의 웹툰 데이터를 로드했습니다.")
+        return webtoons_data
+        
+    except Exception as e:
+        print(f"CSV 로딩 중 오류 발생: {e}")
+        return load_sample_data()
+
 
 def calculate_tag_frequency(webtoons_data):
     """태그 빈도 계산"""
