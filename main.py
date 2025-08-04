@@ -25,6 +25,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "https://webtoon-analytics-dashboard.vercel.app/",
         "https://webtoon-analytics-dashboard-1flmwo7bk.vercel.app",
     ],
     allow_credentials=True,
