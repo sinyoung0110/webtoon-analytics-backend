@@ -7,6 +7,8 @@ from typing import List, Dict, Optional
 import json
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(
     title="웹툰 분석 API",
