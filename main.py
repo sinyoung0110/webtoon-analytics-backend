@@ -18,9 +18,15 @@ app = FastAPI(
 )
 
 # CORS 설정
+# main.py의 CORS 설정 부분을 다음으로 교체
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://your-frontend-domain.vercel.app"],
+    allow_origins=[
+        "http://localhost:3000",  # 로컬 개발
+        "https://*.vercel.app",   # Vercel 배포
+        "https://*.netlify.app",  # Netlify 배포 (옵션)
+        "https://webtoon-analytics-dashboard.vercel.app",  # 예상 프론트엔드 URL
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
