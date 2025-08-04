@@ -280,11 +280,14 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    # 개발용 설정
+
+    # 🔧 환경변수에서 PORT 가져오기 (기본값 8000)
+    port = int(os.environ.get("PORT", 8000))
+
     uvicorn.run(
-        "main:app", 
-        host="0.0.0.0", 
-        port=8000, 
-        reload=True,  # 코드 변경시 자동 재시작
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=False,
         log_level="info"
     )
