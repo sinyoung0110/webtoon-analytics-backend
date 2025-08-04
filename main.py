@@ -7,6 +7,7 @@ from typing import List, Dict, Optional
 import json
 import os
 from datetime import datetime
+import uvicorn
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -279,15 +280,5 @@ async def health_check():
     }
 
 if __name__ == "__main__":
-    import uvicorn
-
-    # 🔧 환경변수에서 PORT 가져오기 (기본값 8000)
     port = int(os.environ.get("PORT", 8000))
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,
-        log_level="info"
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
