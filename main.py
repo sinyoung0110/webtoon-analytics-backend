@@ -306,8 +306,20 @@ def create_advanced_network_data(webtoons_data, selected_tags=None, min_correlat
     
     # 태그 매트릭스 및 상관관계 계산
     tag_matrix, frequent_tags, tag_counts = create_tag_matrix(webtoons_data)
-    correlation_matrix, correlations = calculate_tag_correlations(tag_matrix, frequent_tags)
+    _, correlations = calculate_tag_correlations(tag_matrix, frequent_tags)
     
+    # 전체 태그 영향력 계산 (모든 경우에 필요)
+    tag_influence = defaultdict(float)
+    for tag in frequent_tags[:50]:
+        frequency_score = tag_counts.get(tag, 0) / max(tag_counts.values())
+        
+        connection_score = 0
+        for corr in correlations[:50]:
+            if corr['tag1'] == tag or corr['tag2'] == tag:
+                connection_score += corr['correlation']
+        
+        tag_influence[tag] = frequency_score * 0.6 + (connection_score / 10) * 0.4
+
     # 선택된 태그가 있으면 해당 태그와 연결된 노드들만 포함
     if selected_tags:
         relevant_tags = set(selected_tags)
@@ -331,17 +343,6 @@ def create_advanced_network_data(webtoons_data, selected_tags=None, min_correlat
         top_tags = set([tag for tag, _ in sorted_tags[:max_nodes]])
     else:
         # 전체 태그에서 상위 노드 선택
-        tag_influence = defaultdict(float)
-        for tag in frequent_tags[:50]:
-            frequency_score = tag_counts.get(tag, 0) / max(tag_counts.values())
-            
-            connection_score = 0
-            for corr in correlations[:50]:
-                if corr['tag1'] == tag or corr['tag2'] == tag:
-                    connection_score += corr['correlation']
-            
-            tag_influence[tag] = frequency_score * 0.6 + (connection_score / 10) * 0.4
-        
         sorted_tags = sorted(tag_influence.items(), key=lambda x: x[1], reverse=True)
         top_tags = set([tag for tag, _ in sorted_tags[:max_nodes]])
     
@@ -714,7 +715,7 @@ def analyze_tag_connectivity(webtoons_data, min_correlation=0.15):
     
     # 태그 매트릭스 및 상관관계 계산
     tag_matrix, frequent_tags, tag_counts = create_tag_matrix(webtoons_data)
-    correlation_matrix, correlations = calculate_tag_correlations(tag_matrix, frequent_tags)
+    _, correlations = calculate_tag_correlations(tag_matrix, frequent_tags)
     
     # 각 태그별 연결된 태그들과 연결 강도 계산
     tag_connections = {}
