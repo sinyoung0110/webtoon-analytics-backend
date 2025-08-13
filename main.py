@@ -73,61 +73,27 @@ TAG_NORMALIZATION = {
     # 로맨스 관련
     "완결로맨스": "로맨스",
     "완결 로맨스": "로맨스", 
-    "순정": "로맨스",
-    "연애": "로맨스",
-    "러브": "로맨스",
-    "순정남": "로맨스",
-    "첫사랑": "로맨스",
-    "소꿉친구": "로맨스",
     
     # 액션 관련
     "완결액션": "액션",
     "완결 액션": "액션",
-    "배틀": "액션",
-    "격투": "액션",
-    "전투": "액션",
-    "격투기": "액션",
-    "학원액션": "액션",
+
     
     # 판타지 관련
     "완결판타지": "판타지",
     "완결 판타지": "판타지",
-    "마법": "판타지",
-    "환상": "판타지",
-    "이세계": "판타지",
-    "이능력": "판타지",
     
     # 드라마 관련
     "완결드라마": "드라마",
     "완결 드라마": "드라마",
-    "멜로": "드라마",
-    "감동": "드라마",
-    "감성드라마": "드라마",
-    "감성적인": "드라마",
     
     # 스릴러 관련
     "완결스릴러": "스릴러",
     "완결 스릴러": "스릴러",
-    "서스펜스": "스릴러",
-    "미스터리": "스릴러",
     
     # 일상 관련
     "완결일상": "일상",
     "완결 일상": "일상",
-    "힐링": "일상",
-    "소소한": "일상",
-    
-    # 성장/무협 관련
-    "성장물": "성장",
-    "레벨업": "성장",
-    "무협/사극": "무협",
-    "사극": "무협",
-    
-    # 기타
-    "왕족/귀족": "귀족",
-    "개그": "코미디",
-    "러블리": "일상",
-    "명작": "명작",
 }
 
 def normalize_tag(tag):
@@ -461,6 +427,7 @@ async def read_root():
             "webtoons": "/api/webtoons",
             "tag_analysis": "/api/analysis/tags",
             "network_analysis": "/api/analysis/network",
+            "tag_connectivity": "/api/analysis/tag-connectivity",
             "related_tags": "/api/analysis/related-tags/{tag}",
             "heatmap": "/api/analysis/heatmap",
             "recommendations": "/api/recommendations",
@@ -705,6 +672,96 @@ async def get_heatmap_analysis():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"히트맵 분석 실패: {str(e)}")
+
+def analyze_tag_connectivity(webtoons_data, min_correlation=0.15):
+    """태그별 연결성 분석 - 각 태그가 몇 개의 다른 태그와 연결되어 있는지 분석"""
+    print("🕸️ 태그 연결성 분석 시작...")
+    
+    # 태그 매트릭스 및 상관관계 계산
+    tag_matrix, frequent_tags, tag_counts = create_tag_matrix(webtoons_data)
+    correlation_matrix, correlations = calculate_tag_correlations(tag_matrix, frequent_tags)
+    
+    # 각 태그별 연결된 태그들과 연결 강도 계산
+    tag_connections = {}
+    
+    for tag in frequent_tags:
+        connected_tags = []
+        
+        # 이 태그와 연결된 모든 태그들 찾기
+        for corr in correlations:
+            if corr['correlation'] >= min_correlation:
+                if corr['tag1'] == tag:
+                    connected_tags.append({
+                        'connected_tag': corr['tag2'],
+                        'correlation': round(corr['correlation'], 3),
+                        'co_occurrence': round(corr['co_occurrence'], 1)
+                    })
+                elif corr['tag2'] == tag:
+                    connected_tags.append({
+                        'connected_tag': corr['tag1'], 
+                        'correlation': round(corr['correlation'], 3),
+                        'co_occurrence': round(corr['co_occurrence'], 1)
+                    })
+        
+        # 연결 강도순으로 정렬
+        connected_tags.sort(key=lambda x: x['correlation'], reverse=True)
+        
+        tag_connections[tag] = {
+            'tag': tag,
+            'connection_count': len(connected_tags),
+            'connected_tags': connected_tags,
+            'frequency': tag_counts.get(tag, 0),
+            'avg_correlation': round(np.mean([ct['correlation'] for ct in connected_tags]), 3) if connected_tags else 0,
+            'category': get_korean_tag_category(tag)
+        }
+    
+    # 연결성이 높은 순으로 정렬
+    sorted_connectivity = sorted(
+        tag_connections.values(),
+        key=lambda x: (x['connection_count'], x['avg_correlation']),
+        reverse=True
+    )
+    
+    return sorted_connectivity
+
+@app.get("/api/analysis/tag-connectivity")
+async def get_tag_connectivity(
+    min_correlation: Optional[float] = Query(0.15, description="최소 상관계수"),
+    top_n: Optional[int] = Query(15, description="상위 N개 태그")
+):
+    """태그별 연결성 분석 - 각 태그가 몇 개의 다른 태그와 연결되어 있는지"""
+    try:
+        webtoons_data = load_webtoon_data()
+        connectivity_data = analyze_tag_connectivity(webtoons_data, min_correlation)
+        
+        # 상위 N개만 선택
+        top_connectivity = connectivity_data[:top_n]
+        
+        # 요약 통계
+        summary = {
+            "total_analyzed_tags": len(connectivity_data),
+            "min_correlation_threshold": min_correlation,
+            "most_connected_tag": connectivity_data[0]['tag'] if connectivity_data else None,
+            "max_connections": connectivity_data[0]['connection_count'] if connectivity_data else 0,
+            "avg_connections": round(np.mean([t['connection_count'] for t in connectivity_data]), 1) if connectivity_data else 0
+        }
+        
+        return {
+            "success": True,
+            "data": {
+                "top_connected_tags": top_connectivity,
+                "summary": summary,
+                "analysis_info": {
+                    "description": "각 태그가 다른 태그들과 얼마나 강하게 연결되어 있는지 분석",
+                    "correlation_method": "cosine_similarity",
+                    "weight_factors": ["rating", "interest_count"],
+                    "min_tag_frequency": 3
+                }
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"태그 연결성 분석 실패: {str(e)}")
 
 @app.get("/api/analysis/insights")
 async def get_insights():
